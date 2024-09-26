@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Fly Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: url('images/start_background.png') no-repeat center center fixed;
+            background-size: cover;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        #gameContainer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 70%; /* Game height is 70% */
+            background: transparent;
+            margin: 0;
+        }
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            max-width: 500px;
+            max-height: 700px;
+            background: transparent;
+        }
+        #sidePanel {
+            width: 100%;
+            height: 30%; /* Bottom panel height is 30% */
+            display: none; /* Hide the score area initially */
+            position: relative; /* To position child elements */
+            margin: 0;
+            background: url('images/score_background.png') no-repeat center center; /* New background image */
+            background-size: cover; /* Ensure background fills the area */
+        }
+        #scoreContainer {
+            width: 100%;
+            height: 100%; /* Use full height */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #FF4500;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        #scoreContainer p {
+            font-size: 24px;
+            margin: 0; 
+        }
+        #startButton {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            padding: 15px 30px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        #startButton:hover {
+            background-color: #45a049;
+        }
+        #gameOverMessage {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        #retryButton {
+            display: inline-block;
+            font-size: 24px;
+            padding: 10px 20px;
+            background-color: #ADD8E6;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        #retryButton:hover {
+            background-color: #87CEEB;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="sidePanel">
+        <div id="scoreContainer">
+            <p id="scoreBoard">Score: 0</p>
+            <p id="bestScore">Best Score: 0</p>
+        </div>
+    </div>
+
+    <div id="gameOverMessage">
+        <p id="finalScore">Game Over! Score: 0</p>
+        <button id="retryButton">Retry</button>
+    </div>
+
+    <button id="startButton">Start Game</button>
+
+    <script>
+        let canvas = document.getElementById('gameCanvas');
+        let ctx = canvas.getContext('2d');
+        let width = canvas.width = canvas.clientWidth;
+        let height = canvas.height = canvas.clientHeight;
+
+        let bird = {
+            x: 50,
+            y: height / 2,
+            width: 60,
+            height: 45,
+            gravity: 0.6,
+            lift: -10,
+            velocity: 0,
+            sprite: new Image()
+        };
+        bird.sprite.src = 'images/bird.png';
+
+        let pipes = [];
+        let pipeWidth = 60;
+        let pipeGap = 180;
+        let pipeSpeed = 2;
+        let pipeSpacing = 250;
+
+        let pipeTopSprite = new Image();
+        let pipeBottomSprite = new Image();
+        pipeTopSprite.src = 'images/pipeTop.png';
+        pipeBottomSprite.src = 'images/pipeBottom.png';
+
+        let score = 0;
+        let bestScore = 0;
+        let coins = [];
+        let coinSprite = new Image();
+        coinSprite.src = 'images/coin.png';
+
+        let backgroundImage = new Image();
+        backgroundImage.src = 'images/background.png';
+
+        let flapSound = new Audio('sounds/flap.wav');
+        let fallSound = new Audio('sounds/fall.wav');
+        let coinSound = new Audio('sounds/coin.wav');
+
+        let gameRunning = false;
+
+        window.addEventListener('touchstart', () => {
+            if (gameRunning) {
+                bird.velocity = bird.lift;
+                flapSound.play();  
+            }
+        });
+
+        function createPipe() {
+            let pipeHeight = Math.floor(Math.random() * (height - pipeGap - 100)) + 50;
+            pipes.push({
+                x: width,
+                y: pipeHeight,
+                width: pipeWidth,
+                gap: pipeGap
+            });
+
+            let coinY = pipeHeight + (pipeGap / 2) - 15;
+            coins.push({
+                x: width + pipeWidth / 2,
+                y: coinY
+            });
+        }
+
+        function update() {
+            if (!gameRunning) return;
+
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            if (bird.y + bird.height > height || bird.y < 0) {
+                gameOver();
+            }
+
+            if (pipes.length === 0 || pipes[pipes.length - 1].x < width - pipeSpacing) {
+                createPipe();
+            }
+
+            pipes.forEach((pipe, index) => {
+                pipe.x -= pipeSpeed;
+
+                if (pipe.x + pipe.width < 0) {
+                    pipes.splice(index, 1);
+                }
+
+                if (bird.x < pipe.x + pipe.width && bird.x + bird.width > pipe.x && 
+                    (bird.y < pipe.y || bird.y + bird.height > pipe.y + pipe.gap)) {
+                    gameOver();
+                }
+            });
+
+            coins.forEach((coin, index) => {
+                coin.x -= pipeSpeed;
+
+                if (bird.x < coin.x + 30 && bird.x + bird.width > coin.x && bird.y < coin.y + 30 && bird.y + bird.height > coin.y) {
+                    coins.splice(index, 1);
+                    score++;
+                    coinSound.play();
+                }
+            });
+
+            document.getElementById('scoreBoard').innerText = 'Score: ' + score;
+            document.getElementById('bestScore').innerText = 'Best Score: ' + bestScore;
+
+            if (score > bestScore) {
+                bestScore = score;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            ctx.drawImage(backgroundImage, 0, 0, width, height);
+
+            ctx.drawImage(bird.sprite, bird.x, bird.y, bird.width, bird.height);
+
+            pipes.forEach(pipe => {
+                ctx.drawImage(pipeTopSprite, pipe.x, pipe.y - pipeTopSprite.height, pipe.width, pipeTopSprite.height);
+                ctx.drawImage(pipeBottomSprite, pipe.x, pipe.y + pipe.gap, pipe.width, height - pipe.y - pipe.gap);
+            });
+
+            coins.forEach(coin => {
+                ctx.drawImage(coinSprite, coin.x, coin.y, 30, 30);
+            });
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            fallSound.play();  
+            document.getElementById('finalScore').innerText = 'Game Over! Score: ' + score;
+            document.getElementById('gameOverMessage').style.display = 'block';
+        }
+
+        function resetGame() {
+            bird.y = height / 2;
+            bird.velocity = 0;
+            pipes = [];
+            coins = [];
+            score = 0;
+            createPipe();
+            gameRunning = true;
+            document.getElementById('sidePanel').style.display = 'flex';
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if (gameRunning) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        document.getElementById('startButton').addEventListener('click', () => {
+            document.body.style.background = 'none';
+            document.getElementById('startButton').style.display = 'none';
+            resetGame();
+            gameRunning = true;
+            gameLoop();
+        });
+
+        document.getElementById('retryButton').addEventListener('click', () => {
+            document.getElementById('gameOverMessage').style.display = 'none';
+            resetGame();
+            gameRunning = true;
+            gameLoop();
+        });
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = canvas.clientWidth;
+            height = canvas.height = canvas.clientHeight;
+            resetGame();
+        });
+    </script>
+</body>
+</html>
+

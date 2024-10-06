@@ -288,16 +288,9 @@
         document.getElementById('retryButton').addEventListener('click', () => {
             document.getElementById('gameOverMessage').style.display = 'none';
             resetGame();
-            gameRunning = true;
             gameLoop();
         });
-
-        window.addEventListener('resize', () => {
-            width = canvas.width = canvas.clientWidth;
-            height = canvas.height = canvas.clientHeight;
-            resetGame();
-        });
     </script>
+
 </body>
 </html>
-
